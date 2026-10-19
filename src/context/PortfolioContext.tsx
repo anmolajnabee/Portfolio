@@ -7,7 +7,8 @@ import {
   Profile,
   AppearanceSettings,
   EducationItem,
-  AdminUser
+  AdminUser,
+  ContactMessage
 } from '../types/portfolio';
 import { GitHubRepository } from '../types/github';
 import { fetchGitHubRepositories, mapRepoToProject } from '../services/githubService';
@@ -29,6 +30,11 @@ import {
   subscribeEducation,
   saveEducationDoc,
   deleteEducationDoc,
+  submitContactMessage,
+  subscribeMessages,
+  markMessageRead,
+  markMessageReplied,
+  deleteMessageDoc,
   seedInitialFirestoreData,
   checkHasInitializedData
 } from '../firebase/firestoreService';
@@ -78,6 +84,12 @@ interface PortfolioContextType {
   activeView: 'public' | 'admin';
   setActiveView: (view: 'public' | 'admin') => void;
   authorizedAdminEmail: string;
+  messages: ContactMessage[];
+  unreadMessagesCount: number;
+  submitMessage: (msg: { name: string; email: string; message: string }) => Promise<{ success: boolean; messageId?: string; emailSent?: boolean; error?: string }>;
+  markMessageAsRead: (id: string, read: boolean) => Promise<void>;
+  markMessageAsReplied: (id: string, replied: boolean) => Promise<void>;
+  deleteMessage: (id: string) => Promise<void>;
 }
 
 const PortfolioContext = createContext<PortfolioContextType | undefined>(undefined);
@@ -95,6 +107,22 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isFetchingGitHub, setIsFetchingGitHub] = useState(false);
   const [githubError, setGithubError] = useState<string | null>(null);
   const [rateLimitRemaining, setRateLimitRemaining] = useState<number | null>(null);
+
+  // Messages live state & unread count
+  const [messages, setMessages] = useState<ContactMessage[]>([]);
+  const unreadMessagesCount = messages.filter((m) => !m.read).length;
+
+  // Subscribe to Messages when authorized admin is signed in
+  useEffect(() => {
+    if (!adminUser?.isAuthorizedAdmin) {
+      setMessages([]);
+      return;
+    }
+    const unsub = subscribeMessages((newMsgs) => {
+      setMessages(newMsgs);
+    }, true);
+    return () => unsub();
+  }, [adminUser?.isAuthorizedAdmin]);
 
   // 1. Listen for Authentication changes
   useEffect(() => {
@@ -528,6 +556,56 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
+  const submitMessage = async (input: { name: string; email: string; message: string }) => {
+    // 1. Direct validation and persistence to Firestore
+    const messageId = await submitContactMessage(input);
+
+    // 2. Trigger server-side email notification via /api/contact-notify
+    let emailSent = false;
+    try {
+      const resp = await fetch('/api/contact-notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: input.name,
+          email: input.email,
+          message: input.message,
+          messageId,
+          createdAt: new Date().toISOString()
+        })
+      });
+      if (resp.ok) {
+        const json = await resp.json();
+        emailSent = Boolean(json.emailSent);
+      }
+    } catch (err) {
+      console.warn('[Notification Notice] Server notification endpoint unreachable; message safely saved to database:', err);
+    }
+
+    return { success: true, messageId, emailSent };
+  };
+
+  const markMessageAsRead = async (id: string, read: boolean) => {
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, read } : m));
+    if (adminUser?.isAuthorizedAdmin) {
+      await markMessageRead(id, read);
+    }
+  };
+
+  const markMessageAsReplied = async (id: string, replied: boolean) => {
+    setMessages(prev => prev.map(m => m.id === id ? { ...m, replied, read: true, repliedAt: replied ? new Date().toISOString() : undefined } : m));
+    if (adminUser?.isAuthorizedAdmin) {
+      await markMessageReplied(id, replied);
+    }
+  };
+
+  const deleteMessage = async (id: string) => {
+    setMessages(prev => prev.filter(m => m.id !== id));
+    if (adminUser?.isAuthorizedAdmin) {
+      await deleteMessageDoc(id);
+    }
+  };
+
   const seedFirestore = async () => {
     if (!adminUser?.isAuthorizedAdmin) {
       throw new Error('Only the authorized administrator can initialize Firestore data.');
@@ -583,7 +661,13 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         isFirestoreConnected,
         activeView,
         setActiveView,
-        authorizedAdminEmail: AUTHORIZED_ADMIN_EMAIL
+        authorizedAdminEmail: AUTHORIZED_ADMIN_EMAIL,
+        messages,
+        unreadMessagesCount,
+        submitMessage,
+        markMessageAsRead,
+        markMessageAsReplied,
+        deleteMessage
       }}
     >
       {children}

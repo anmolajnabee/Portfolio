@@ -16,7 +16,8 @@ import {
   Certificate,
   SkillCategory,
   EducationItem,
-  AppearanceSettings
+  AppearanceSettings,
+  ContactMessage
 } from '../types/portfolio';
 import { initialPortfolioData } from '../data/initialData';
 
@@ -29,6 +30,7 @@ export const PATHS = {
   SKILLS: 'skillCategories',
   EDUCATION: 'education',
   ADMINS: 'admins',
+  MESSAGES: 'messages',
 };
 
 // 1. Subscribe to Profile Document
@@ -292,7 +294,127 @@ export async function deleteEducationDoc(educationId: string): Promise<void> {
   }
 }
 
-// 17. Seed initial portfolio data to Firestore (Authorized Administrator only)
+// 17. Submit Contact Message (Public Visitor)
+export async function submitContactMessage(input: {
+  name: string;
+  email: string;
+  message: string;
+}): Promise<string> {
+  const name = input.name.trim();
+  const email = input.email.trim();
+  const message = input.message.trim();
+
+  // Client-side pre-validation
+  if (name.length < 2 || name.length > 100) {
+    throw new Error('Name must be between 2 and 100 characters');
+  }
+  const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+  if (!emailRegex.test(email) || email.length > 150) {
+    throw new Error('Please provide a valid email address');
+  }
+  if (message.length < 10 || message.length > 2000) {
+    throw new Error('Message must be between 10 and 2000 characters');
+  }
+
+  const messageId = `msg-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+  const docRef = doc(db, PATHS.MESSAGES, messageId);
+
+  const payload: ContactMessage = {
+    id: messageId,
+    name,
+    email,
+    message,
+    createdAt: new Date().toISOString(),
+    read: false,
+    replied: false,
+  };
+
+  try {
+    await setDoc(docRef, payload);
+    return messageId;
+  } catch (error) {
+    handleFirestoreError(error, OperationType.CREATE, `${PATHS.MESSAGES}/${messageId}`);
+  }
+}
+
+// 18. Subscribe to Contact Messages (Authorized Administrator only)
+export function subscribeMessages(
+  onUpdate: (messages: ContactMessage[]) => void,
+  isAdmin: boolean = false
+) {
+  if (!isAdmin) {
+    // Public visitors cannot read messages - return no-op unsubscription
+    return () => {};
+  }
+
+  const colRef = collection(db, PATHS.MESSAGES);
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const messages: ContactMessage[] = snapshot.docs.map((docSnap) => {
+        const d = docSnap.data();
+        return {
+          id: docSnap.id,
+          name: d.name || 'Anonymous',
+          email: d.email || '',
+          message: d.message || '',
+          createdAt: d.createdAt || new Date().toISOString(),
+          read: Boolean(d.read),
+          replied: Boolean(d.replied),
+          repliedAt: d.repliedAt,
+        };
+      });
+
+      // Sort newest submissions first
+      messages.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      onUpdate(messages);
+    },
+    (error) => {
+      // In case unauthorized user triggered it or permissions pending
+      if (error.message.includes('permission')) {
+        console.warn('Access denied: Contact inbox requires verified administrator privileges');
+      } else {
+        handleFirestoreError(error, OperationType.LIST, PATHS.MESSAGES);
+      }
+    }
+  );
+}
+
+// 19. Mark Message as Read / Unread (Admin only)
+export async function markMessageRead(messageId: string, read: boolean): Promise<void> {
+  const docRef = doc(db, PATHS.MESSAGES, messageId);
+  try {
+    await setDoc(docRef, { read }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `${PATHS.MESSAGES}/${messageId}`);
+  }
+}
+
+// 20. Mark Message as Replied (Admin only)
+export async function markMessageReplied(messageId: string, replied: boolean): Promise<void> {
+  const docRef = doc(db, PATHS.MESSAGES, messageId);
+  try {
+    await setDoc(docRef, {
+      replied,
+      repliedAt: replied ? new Date().toISOString() : null,
+      read: true // auto-mark as read when replied
+    }, { merge: true });
+  } catch (error) {
+    handleFirestoreError(error, OperationType.UPDATE, `${PATHS.MESSAGES}/${messageId}`);
+  }
+}
+
+// 21. Delete Message (Admin only)
+export async function deleteMessageDoc(messageId: string): Promise<void> {
+  const docRef = doc(db, PATHS.MESSAGES, messageId);
+  try {
+    await deleteDoc(docRef);
+  } catch (error) {
+    handleFirestoreError(error, OperationType.DELETE, `${PATHS.MESSAGES}/${messageId}`);
+  }
+}
+
+// 22. Seed initial portfolio data to Firestore (Authorized Administrator only)
 export async function seedInitialFirestoreData(): Promise<{ success: boolean; message: string }> {
   try {
     const batch = writeBatch(db);

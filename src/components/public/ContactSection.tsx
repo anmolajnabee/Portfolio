@@ -16,7 +16,7 @@ const XIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
 );
 
 export const ContactSection: React.FC = () => {
-  const { data, setActiveView } = usePortfolio();
+  const { data, setActiveView, submitMessage } = usePortfolio();
   const { profile } = data;
   const email = profile.socials?.email || 'anm8789667614@gmail.com';
 
@@ -31,8 +31,9 @@ export const ContactSection: React.FC = () => {
   const xTwitterUrl = profile.socials?.twitter?.trim();
 
   const [copied, setCopied] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', message: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', message: '', honeypot: '' });
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [serverError, setServerError] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ name?: string; email?: string; message?: string }>({});
 
   const handleCopyEmail = () => {
@@ -43,28 +44,69 @@ export const ContactSection: React.FC = () => {
 
   const validate = () => {
     const errs: typeof errors = {};
-    if (!formData.name.trim()) errs.name = 'Please provide your name';
-    if (!formData.email.trim() || !formData.email.includes('@')) {
-      errs.email = 'Please provide a valid email address';
+    const trimmedName = formData.name.trim();
+    const trimmedEmail = formData.email.trim();
+    const trimmedMessage = formData.message.trim();
+
+    if (!trimmedName || trimmedName.length < 2) {
+      errs.name = 'Please provide your full name (minimum 2 characters)';
+    } else if (trimmedName.length > 100) {
+      errs.name = 'Name must be 100 characters or fewer';
     }
-    if (!formData.message.trim() || formData.message.trim().length < 10) {
+
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!trimmedEmail) {
+      errs.email = 'Please provide your email address';
+    } else if (!emailRegex.test(trimmedEmail) || trimmedEmail.length > 150) {
+      errs.email = 'Please provide a valid email address (e.g. name@domain.com)';
+    }
+
+    if (!trimmedMessage || trimmedMessage.length < 10) {
       errs.message = 'Message must be at least 10 characters';
+    } else if (trimmedMessage.length > 2000) {
+      errs.message = 'Message must be 2000 characters or fewer';
     }
+
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Bot honeypot protection: silently drop automated spam
+    if (formData.honeypot) {
+      setStatus('sent');
+      setFormData({ name: '', email: '', message: '', honeypot: '' });
+      return;
+    }
+
     if (!validate()) return;
 
     setStatus('sending');
-    // Direct client mailto fallback trigger + clear feedback
-    setTimeout(() => {
-      setStatus('sent');
-      setFormData({ name: '', email: '', message: '' });
-      setTimeout(() => setStatus('idle'), 5000);
-    }, 600);
+    setServerError(null);
+
+    try {
+      const res = await submitMessage({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        message: formData.message.trim(),
+      });
+
+      if (res.success) {
+        setStatus('sent');
+        setFormData({ name: '', email: '', message: '', honeypot: '' });
+        setErrors({});
+        setTimeout(() => setStatus('idle'), 6000);
+      } else {
+        setStatus('error');
+        setServerError(res.error || 'Could not save message. Please try again or email directly.');
+      }
+    } catch (err) {
+      setStatus('error');
+      const msg = err instanceof Error ? err.message : 'Failed to send message. Please try again.';
+      setServerError(msg);
+    }
   };
 
   return (
@@ -190,11 +232,26 @@ export const ContactSection: React.FC = () => {
           {/* Right Column: Simple, Secure Contact Form */}
           <div className="p-6 rounded-xl bg-[#111113] border border-white/[0.08]">
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Spam protection honeypot (hidden from human visitors) */}
+              <input
+                type="text"
+                name="user_organization_website"
+                value={formData.honeypot}
+                onChange={(e) => setFormData({ ...formData, honeypot: e.target.value })}
+                className="hidden"
+                tabIndex={-1}
+                autoComplete="off"
+                aria-hidden="true"
+              />
+
               <Input
                 label="Your Name"
-                placeholder="Name"
+                placeholder="Anmol's Colleague"
                 value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, name: e.target.value });
+                  if (errors.name) setErrors({ ...errors, name: undefined });
+                }}
                 error={errors.name}
                 required
               />
@@ -204,20 +261,53 @@ export const ContactSection: React.FC = () => {
                 type="email"
                 placeholder="name@example.com"
                 value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                onChange={(e) => {
+                  setFormData({ ...formData, email: e.target.value });
+                  if (errors.email) setErrors({ ...errors, email: undefined });
+                }}
                 error={errors.email}
                 required
               />
 
-              <Textarea
-                label="Message"
-                placeholder="Brief message..."
-                rows={4}
-                value={formData.message}
-                onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                error={errors.message}
-                required
-              />
+              <div className="space-y-1">
+                <Textarea
+                  label="Message"
+                  placeholder="Tell me about your project, idea, or collaboration..."
+                  rows={4}
+                  value={formData.message}
+                  onChange={(e) => {
+                    setFormData({ ...formData, message: e.target.value });
+                    if (errors.message) setErrors({ ...errors, message: undefined });
+                  }}
+                  error={errors.message}
+                  required
+                />
+                <div className="flex justify-between items-center text-[10px] text-[#929292] font-mono px-1">
+                  <span>Minimum 10 characters</span>
+                  <span>{formData.message.length} / 2000</span>
+                </div>
+              </div>
+
+              {/* Server-side Error Alert */}
+              {serverError && (
+                <div className="p-3 rounded-lg bg-red-950/40 border border-red-500/20 text-xs text-red-400 space-y-1">
+                  <p className="font-semibold">Unable to submit message</p>
+                  <p className="text-[11px] text-red-300">{serverError}</p>
+                </div>
+              )}
+
+              {/* Confirmed Success Alert */}
+              {status === 'sent' && (
+                <div className="p-3.5 rounded-lg bg-emerald-950/30 border border-emerald-500/20 text-xs text-emerald-400 flex items-start gap-2.5 animate-fadeIn">
+                  <Check className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-semibold text-emerald-300">Message sent successfully!</p>
+                    <p className="text-[11px] text-emerald-400/80">
+                      Your message has been saved to the database and delivered to the inbox. I'll get back to you soon.
+                    </p>
+                  </div>
+                </div>
+              )}
 
               <Button
                 type="submit"
@@ -227,13 +317,17 @@ export const ContactSection: React.FC = () => {
                 disabled={status === 'sending'}
               >
                 {status === 'sending' ? (
-                  <span>Sending...</span>
+                  <span className="flex items-center gap-2 justify-center">
+                    <span className="w-3.5 h-3.5 border-2 border-black border-t-transparent rounded-full animate-spin" />
+                    <span>Saving message...</span>
+                  </span>
                 ) : status === 'sent' ? (
-                  <span className="flex items-center gap-1.5 text-emerald-600 font-semibold">
-                    <Check className="w-4 h-4" /> Message Sent
+                  <span className="flex items-center gap-1.5 justify-center text-emerald-900 font-semibold">
+                    <Check className="w-4 h-4 text-emerald-700" />
+                    <span>Message Delivered</span>
                   </span>
                 ) : (
-                  <span className="flex items-center gap-2">
+                  <span className="flex items-center gap-2 justify-center">
                     <span>Send Message</span>
                     <Send className="w-3.5 h-3.5" />
                   </span>

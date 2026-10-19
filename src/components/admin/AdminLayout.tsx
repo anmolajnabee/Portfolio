@@ -4,6 +4,7 @@ import { AdminOverview } from './AdminOverview';
 import { AdminProfile } from './AdminProfile';
 import { AdminProjects } from './AdminProjects';
 import { AdminCertificates } from './AdminCertificates';
+import { AdminMessages } from './AdminMessages';
 import { AdminSettings } from './AdminSettings';
 import { withAdminAuth } from './withAdminAuth';
 import {
@@ -11,6 +12,7 @@ import {
   User,
   FolderGit2,
   Award,
+  Mail,
   Settings,
   ArrowLeft,
   LogOut,
@@ -20,7 +22,7 @@ import {
 } from 'lucide-react';
 import { Button } from '../ui/Button';
 
-type AdminTab = 'overview' | 'profile' | 'projects' | 'certificates' | 'settings';
+type AdminTab = 'overview' | 'messages' | 'projects' | 'certificates' | 'profile' | 'settings';
 
 const AdminLayoutBase: React.FC = () => {
   const {
@@ -29,17 +31,32 @@ const AdminLayoutBase: React.FC = () => {
     adminUser,
     signOutAdminSession,
     isFirestoreConnected,
+    unreadMessagesCount,
+    messages
   } = usePortfolio();
 
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Exactly 5 clean management screens
-  const navItems: Array<{ id: AdminTab; label: string; icon: React.ComponentType<{ className?: string }>; count?: number }> = [
+  // Clean management screens with Messages inbox
+  const navItems: Array<{
+    id: AdminTab;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    count?: number;
+    highlightCount?: boolean;
+  }> = [
     { id: 'overview', label: 'Overview', icon: LayoutDashboard },
-    { id: 'profile', label: 'Profile', icon: User },
+    {
+      id: 'messages',
+      label: 'Messages',
+      icon: Mail,
+      count: unreadMessagesCount > 0 ? unreadMessagesCount : messages.length,
+      highlightCount: unreadMessagesCount > 0,
+    },
     { id: 'projects', label: 'Projects', icon: FolderGit2, count: data.projects.length },
     { id: 'certificates', label: 'Certificates', icon: Award, count: data.certificates.length },
+    { id: 'profile', label: 'Profile', icon: User },
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
@@ -47,6 +64,8 @@ const AdminLayoutBase: React.FC = () => {
     switch (activeTab) {
       case 'overview':
         return <AdminOverview onNavigate={(tab) => setActiveTab(tab)} />;
+      case 'messages':
+        return <AdminMessages />;
       case 'profile':
         return <AdminProfile />;
       case 'projects':
@@ -117,7 +136,13 @@ const AdminLayoutBase: React.FC = () => {
                     <span>{item.label}</span>
                   </div>
                   {item.count !== undefined && (
-                    <span className="text-[10px] font-mono text-[#929292] px-1.5 py-0.5 rounded bg-white/[0.04]">
+                    <span
+                      className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                        item.highlightCount
+                          ? 'bg-[#668CFF]/20 text-[#668CFF] border border-[#668CFF]/30 font-semibold'
+                          : 'text-[#929292] bg-white/[0.04]'
+                      }`}
+                    >
                       {item.count}
                     </span>
                   )}

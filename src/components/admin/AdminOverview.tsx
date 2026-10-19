@@ -1,14 +1,14 @@
 import React from 'react';
 import { usePortfolio } from '../../context/PortfolioContext';
-import { User, FolderGit2, Award, ExternalLink, Settings, ArrowUpRight } from 'lucide-react';
+import { User, FolderGit2, Award, ExternalLink, Settings, ArrowUpRight, Mail } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 interface AdminOverviewProps {
-  onNavigate: (tab: 'profile' | 'projects' | 'certificates' | 'settings') => void;
+  onNavigate: (tab: 'overview' | 'messages' | 'projects' | 'certificates' | 'profile' | 'settings') => void;
 }
 
 export const AdminOverview: React.FC<AdminOverviewProps> = ({ onNavigate }) => {
-  const { data, setActiveView, isFirestoreConnected } = usePortfolio();
+  const { data, setActiveView, isFirestoreConnected, messages, unreadMessagesCount } = usePortfolio();
   const { profile, projects, certificates, skillCategories } = data;
 
   const publishedProjects = projects.filter((p) => p.published !== false).length;
@@ -61,7 +61,35 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ onNavigate }) => {
       </div>
 
       {/* Summary Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Messages Card */}
+        <div className="p-5 rounded-lg bg-[#121215] border border-white/[0.08] space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-mono text-[#929292] uppercase">Inbox</span>
+            <Mail className="w-4 h-4 text-[#668CFF]" />
+          </div>
+          <div>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-bold text-[#F5F5F5]">{messages.length}</p>
+              {unreadMessagesCount > 0 && (
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[#668CFF]/20 text-[#668CFF] font-semibold border border-[#668CFF]/30">
+                  {unreadMessagesCount} unread
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-[#929292] mt-0.5">
+              {unreadMessagesCount > 0 ? `${unreadMessagesCount} pending response` : 'All inquiries reviewed'}
+            </p>
+          </div>
+          <button
+            onClick={() => onNavigate('messages')}
+            className="text-xs text-[#668CFF] hover:underline flex items-center gap-1 pt-1 cursor-pointer"
+          >
+            <span>Open inbox</span>
+            <ArrowUpRight className="w-3 h-3" />
+          </button>
+        </div>
+
         {/* Projects Card */}
         <div className="p-5 rounded-lg bg-[#121215] border border-white/[0.08] space-y-3">
           <div className="flex items-center justify-between">

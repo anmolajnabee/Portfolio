@@ -95,6 +95,20 @@ service cloud.firestore {
         );
     }
 
+    // Validation Blueprint: Contact Message
+    function isValidMessage(data) {
+      return data.keys().hasAll(['name', 'email', 'message', 'createdAt', 'read', 'replied']) &&
+        data.name is string && data.name.size() >= 2 && data.name.size() <= 100 &&
+        data.email is string && data.email.size() >= 5 && data.email.size() <= 150 &&
+        data.email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$') &&
+        data.message is string && data.message.size() >= 10 && data.message.size() <= 2000 &&
+        data.createdAt is string && data.createdAt.size() <= 60 &&
+        data.read is bool &&
+        data.replied is bool &&
+        (!('id' in data) || (data.id is string && data.id.size() <= 100)) &&
+        (!('repliedAt' in data) || (data.repliedAt is string && data.repliedAt.size() <= 60));
+    }
+
     // --- Collections & Paths ---
 
     // 1. Singleton Portfolio Documents (Profile & Appearance)
@@ -146,6 +160,20 @@ service cloud.firestore {
       allow get: if isSignedIn() && request.auth.token.email_verified == true;
       allow list: if isSignedIn() && request.auth.token.email_verified == true;
       allow write: if isVerifiedAdmin();
+    }
+
+    // 7. Contact Messages Collection (Private Admin Inbox)
+    match /messages/{messageId} {
+      // Only verified admin can view or list inbox messages - public visitors NEVER have read access
+      allow get, list: if isVerifiedAdmin();
+      // Public visitors can submit a new contact message with default unread & unreplied status
+      allow create: if isValidId(messageId) &&
+        isValidMessage(request.resource.data) &&
+        request.resource.data.read == false &&
+        request.resource.data.replied == false;
+      // Only verified admin can update status (mark read/unread, mark replied) or delete messages
+      allow update: if isValidId(messageId) && isVerifiedAdmin() && isValidMessage(request.resource.data);
+      allow delete: if isValidId(messageId) && isVerifiedAdmin();
     }
 
     // Legacy admins path compatibility

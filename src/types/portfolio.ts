@@ -138,3 +138,15 @@ export interface AdminUser {
   photoURL: string | null;
   isAuthorizedAdmin: boolean;
 }
+
+export interface ContactMessage {
+  id: string;
+  name: string;
+  email: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+  replied: boolean;
+  repliedAt?: string;
+}
+

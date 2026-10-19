@@ -113,6 +113,21 @@
         "createdAt": { "type": "string", "maxLength": 60 }
       },
       "required": ["email", "role"]
+    },
+    "ContactMessage": {
+      "title": "ContactMessage",
+      "description": "Visitor contact message submissions saved to backend database",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "email": { "type": "string", "maxLength": 150 },
+        "message": { "type": "string", "maxLength": 2000 },
+        "createdAt": { "type": "string", "maxLength": 60 },
+        "read": { "type": "boolean" },
+        "replied": { "type": "boolean" },
+        "repliedAt": { "type": "string", "maxLength": 60 }
+      },
+      "required": ["name", "email", "message", "createdAt", "read", "replied"]
     }
   },
   "firestore": {
@@ -139,6 +154,10 @@
     "/authorizedAdmins/{adminId}": {
       "schema": "AuthorizedAdmin",
       "description": "Whitelisted administrator email entries and roles"
+    },
+    "/messages/{messageId}": {
+      "schema": "ContactMessage",
+      "description": "Private contact messages submitted by visitors from the portfolio contact form"
     }
   }
 }
