@@ -1,0 +1,157 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 1. Global Default-Deny Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Global Helpers ---
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.\\@]+$');
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Authorized administrator validation:
+    // Requires authenticated Google user with verified email strictly matching the configured admin email,
+    // or an explicit registered entry in authorizedAdmins.
+    function isVerifiedAdmin() {
+      return isSignedIn() &&
+        request.auth.token.email_verified == true &&
+        (
+          request.auth.token.email == 'anm8789667614@gmail.com' ||
+          exists(/databases/$(database)/documents/authorizedAdmins/$(request.auth.uid)) ||
+          exists(/databases/$(database)/documents/authorizedAdmins/$(request.auth.token.email))
+        );
+    }
+
+    // Validation Blueprint: Project
+    function isValidProject(data) {
+      return data.keys().hasAll(['title', 'tagline', 'description', 'category', 'published']) &&
+        data.title is string && data.title.size() <= 120 &&
+        data.tagline is string && data.tagline.size() <= 250 &&
+        data.description is string && data.description.size() <= 1000 &&
+        data.category is string && data.category.size() <= 60 &&
+        data.published is bool &&
+        (!('fullStory' in data) || (data.fullStory is string && data.fullStory.size() <= 3000)) &&
+        (!('githubUrl' in data) || (data.githubUrl is string && data.githubUrl.size() <= 300)) &&
+        (!('demoUrl' in data) || (data.demoUrl is string && data.demoUrl.size() <= 300)) &&
+        (!('technologies' in data) || (data.technologies is list && data.technologies.size() <= 30)) &&
+        (!('metrics' in data) || (data.metrics is list && data.metrics.size() <= 10)) &&
+        (!('featured' in data) || data.featured is bool);
+    }
+
+    // Validation Blueprint: Certificate
+    function isValidCertificate(data) {
+      return data.keys().hasAll(['title', 'issuer', 'category', 'published']) &&
+        data.title is string && data.title.size() <= 150 &&
+        data.issuer is string && data.issuer.size() <= 150 &&
+        data.category is string && data.category.size() <= 60 &&
+        data.published is bool &&
+        (!('id' in data) || (data.id is string && data.id.size() <= 100)) &&
+        (!('order' in data) || (data.order is int || data.order is number)) &&
+        (!('issueDate' in data) || (data.issueDate is string && data.issueDate.size() <= 60)) &&
+        (!('credentialId' in data) || (data.credentialId is string && data.credentialId.size() <= 100)) &&
+        (!('verifyUrl' in data) || (data.verifyUrl is string && data.verifyUrl.size() <= 1000)) &&
+        (!('highlight' in data) || (data.highlight is string && data.highlight.size() <= 500)) &&
+        (!('awardAmount' in data) || (data.awardAmount is string && data.awardAmount.size() <= 100)) &&
+        (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 600000)) &&
+        (!('downloadUrl' in data) || (data.downloadUrl is string && data.downloadUrl.size() <= 600000));
+    }
+
+    // Validation Blueprint: SkillCategory
+    function isValidSkillCategory(data) {
+      return data.keys().hasAll(['name', 'published']) &&
+        data.name is string && data.name.size() <= 100 &&
+        data.published is bool &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 300)) &&
+        (!('skills' in data) || (data.skills is list && data.skills.size() <= 50));
+    }
+
+    // Validation Blueprint: Education
+    function isValidEducation(data) {
+      return data.keys().hasAll(['degree', 'institution', 'published']) &&
+        data.degree is string && data.degree.size() <= 150 &&
+        data.institution is string && data.institution.size() <= 150 &&
+        data.published is bool &&
+        (!('location' in data) || (data.location is string && data.location.size() <= 100)) &&
+        (!('period' in data) || (data.period is string && data.period.size() <= 50)) &&
+        (!('gpa' in data) || (data.gpa is string && data.gpa.size() <= 30)) &&
+        (!('coursework' in data) || (data.coursework is list && data.coursework.size() <= 30)) &&
+        (!('achievements' in data) || (data.achievements is list && data.achievements.size() <= 30));
+    }
+
+    // Validation Blueprint: Portfolio Profile / Appearance
+    function isValidPortfolioDoc(docId, data) {
+      return docId in ['profile', 'appearance'] &&
+        (
+          (docId == 'profile' && data.fullName is string && data.fullName.size() <= 100) ||
+          (docId == 'appearance' && data.accentColor is string && data.accentColor.size() <= 30)
+        );
+    }
+
+    // --- Collections & Paths ---
+
+    // 1. Singleton Portfolio Documents (Profile & Appearance)
+    match /portfolio/{docId} {
+      allow get: if isValidId(docId) && (isVerifiedAdmin() || resource.data.published == true || docId == 'appearance');
+      allow list: if isVerifiedAdmin() || resource.data.published == true || docId == 'appearance';
+      allow create, update: if isValidId(docId) && isVerifiedAdmin() && isValidPortfolioDoc(docId, request.resource.data);
+      allow delete: if isValidId(docId) && isVerifiedAdmin();
+    }
+
+    // 2. Projects Collection
+    match /projects/{projectId} {
+      allow get: if isValidId(projectId) && (isVerifiedAdmin() || resource.data.published == true);
+      allow list: if isVerifiedAdmin() || resource.data.published == true;
+      allow create: if isValidId(projectId) && isVerifiedAdmin() && isValidProject(request.resource.data);
+      allow update: if isValidId(projectId) && isVerifiedAdmin() && isValidProject(request.resource.data);
+      allow delete: if isValidId(projectId) && isVerifiedAdmin();
+    }
+
+    // 3. Certificates Collection
+    match /certificates/{certId} {
+      allow get: if isValidId(certId) && (isVerifiedAdmin() || resource.data.published == true);
+      allow list: if isVerifiedAdmin() || resource.data.published == true;
+      allow create: if isValidId(certId) && isVerifiedAdmin() && isValidCertificate(request.resource.data);
+      allow update: if isValidId(certId) && isVerifiedAdmin() && isValidCertificate(request.resource.data);
+      allow delete: if isValidId(certId) && isVerifiedAdmin();
+    }
+
+    // 4. Skills Categories Collection
+    match /skillCategories/{categoryId} {
+      allow get: if isValidId(categoryId) && (isVerifiedAdmin() || resource.data.published == true);
+      allow list: if isVerifiedAdmin() || resource.data.published == true;
+      allow create: if isValidId(categoryId) && isVerifiedAdmin() && isValidSkillCategory(request.resource.data);
+      allow update: if isValidId(categoryId) && isVerifiedAdmin() && isValidSkillCategory(request.resource.data);
+      allow delete: if isValidId(categoryId) && isVerifiedAdmin();
+    }
+
+    // 5. Education Collection
+    match /education/{educationId} {
+      allow get: if isValidId(educationId) && (isVerifiedAdmin() || resource.data.published == true);
+      allow list: if isVerifiedAdmin() || resource.data.published == true;
+      allow create: if isValidId(educationId) && isVerifiedAdmin() && isValidEducation(request.resource.data);
+      allow update: if isValidId(educationId) && isVerifiedAdmin() && isValidEducation(request.resource.data);
+      allow delete: if isValidId(educationId) && isVerifiedAdmin();
+    }
+
+    // 6. Whitelisted Administrators Collection (authorizedAdmins)
+    match /authorizedAdmins/{adminId} {
+      allow get: if isSignedIn() && request.auth.token.email_verified == true;
+      allow list: if isSignedIn() && request.auth.token.email_verified == true;
+      allow write: if isVerifiedAdmin();
+    }
+
+    // Legacy admins path compatibility
+    match /admins/{uid} {
+      allow read: if isVerifiedAdmin();
+      allow write: if isVerifiedAdmin();
+    }
+  }
+}

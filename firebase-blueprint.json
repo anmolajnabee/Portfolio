@@ -1,0 +1,144 @@
+{
+  "entities": {
+    "Profile": {
+      "title": "Profile",
+      "description": "Administrator personal profile, bio narrative, stats, and contact details",
+      "type": "object",
+      "properties": {
+        "fullName": { "type": "string", "maxLength": 100 },
+        "title": { "type": "string", "maxLength": 150 },
+        "headline": { "type": "string", "maxLength": 200 },
+        "subheading": { "type": "string", "maxLength": 500 },
+        "bioParagraph1": { "type": "string", "maxLength": 1500 },
+        "bioParagraph2": { "type": "string", "maxLength": 1500 },
+        "location": { "type": "string", "maxLength": 100 },
+        "availabilityStatus": { "type": "string", "maxLength": 100 },
+        "university": { "type": "string", "maxLength": 150 },
+        "graduationYear": { "type": "string", "maxLength": 50 },
+        "heroPitch": { "type": "string", "maxLength": 300 },
+        "published": { "type": "boolean" },
+        "updatedAt": { "type": "string", "maxLength": 60 }
+      },
+      "required": ["fullName", "title", "headline", "subheading", "published"]
+    },
+    "Project": {
+      "title": "Project",
+      "description": "Individual software project showcase entry",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 120 },
+        "tagline": { "type": "string", "maxLength": 250 },
+        "description": { "type": "string", "maxLength": 1000 },
+        "fullStory": { "type": "string", "maxLength": 3000 },
+        "category": { "type": "string", "maxLength": 60 },
+        "technologies": { "type": "array" },
+        "metrics": { "type": "array" },
+        "githubUrl": { "type": "string", "maxLength": 300 },
+        "demoUrl": { "type": "string", "maxLength": 300 },
+        "featured": { "type": "boolean" },
+        "published": { "type": "boolean" },
+        "date": { "type": "string", "maxLength": 50 },
+        "architectureNotes": { "type": "string", "maxLength": 500 },
+        "coverStyle": { "type": "string", "maxLength": 30 }
+      },
+      "required": ["title", "tagline", "description", "category", "published"]
+    },
+    "Certificate": {
+      "title": "Certificate",
+      "description": "Hackathon win, industry certification, or academic honor",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "maxLength": 150 },
+        "issuer": { "type": "string", "maxLength": 150 },
+        "issueDate": { "type": "string", "maxLength": 60 },
+        "credentialId": { "type": "string", "maxLength": 100 },
+        "verifyUrl": { "type": "string", "maxLength": 300 },
+        "category": { "type": "string", "maxLength": 60 },
+        "highlight": { "type": "string", "maxLength": 500 },
+        "awardAmount": { "type": "string", "maxLength": 100 },
+        "published": { "type": "boolean" }
+      },
+      "required": ["title", "issuer", "category", "published"]
+    },
+    "SkillCategory": {
+      "title": "SkillCategory",
+      "description": "Group of technical skills with proficiency levels",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 300 },
+        "skills": { "type": "array" },
+        "published": { "type": "boolean" },
+        "order": { "type": "number" }
+      },
+      "required": ["name", "published"]
+    },
+    "Education": {
+      "title": "Education",
+      "description": "Academic degrees, coursework, and honors",
+      "type": "object",
+      "properties": {
+        "degree": { "type": "string", "maxLength": 150 },
+        "institution": { "type": "string", "maxLength": 150 },
+        "location": { "type": "string", "maxLength": 100 },
+        "period": { "type": "string", "maxLength": 50 },
+        "gpa": { "type": "string", "maxLength": 30 },
+        "status": { "type": "string", "maxLength": 100 },
+        "coursework": { "type": "array" },
+        "achievements": { "type": "array" },
+        "published": { "type": "boolean" }
+      },
+      "required": ["degree", "institution", "published"]
+    },
+    "Appearance": {
+      "title": "Appearance",
+      "description": "Visual theme and lighting preferences",
+      "type": "object",
+      "properties": {
+        "ambientGlow": { "type": "boolean" },
+        "meshBackground": { "type": "boolean" },
+        "accentColor": { "type": "string", "maxLength": 30 },
+        "cardGlassEffect": { "type": "boolean" },
+        "published": { "type": "boolean" }
+      },
+      "required": ["ambientGlow", "meshBackground", "accentColor"]
+    },
+    "AuthorizedAdmin": {
+      "title": "AuthorizedAdmin",
+      "description": "Whitelisted administrator email entries in authorizedAdmins collection",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "maxLength": 30 },
+        "createdAt": { "type": "string", "maxLength": 60 }
+      },
+      "required": ["email", "role"]
+    }
+  },
+  "firestore": {
+    "/portfolio/{docId}": {
+      "schema": "Profile",
+      "description": "Singleton configuration documents including profile details and appearance settings"
+    },
+    "/projects/{projectId}": {
+      "schema": "Project",
+      "description": "Collection of software projects and systems showcases"
+    },
+    "/certificates/{certId}": {
+      "schema": "Certificate",
+      "description": "Collection of hackathon awards and verified certifications"
+    },
+    "/skillCategories/{categoryId}": {
+      "schema": "SkillCategory",
+      "description": "Categorized technical skill collections"
+    },
+    "/education/{educationId}": {
+      "schema": "Education",
+      "description": "University education, coursework, and distinctions"
+    },
+    "/authorizedAdmins/{adminId}": {
+      "schema": "AuthorizedAdmin",
+      "description": "Whitelisted administrator email entries and roles"
+    }
+  }
+}
