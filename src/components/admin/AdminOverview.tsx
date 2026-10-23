@@ -163,8 +163,29 @@ export const AdminOverview: React.FC<AdminOverviewProps> = ({ onNavigate }) => {
         </h3>
         <div className="divide-y divide-white/[0.08] border border-white/[0.08] rounded-lg bg-[#121215]">
           <button
+            onClick={() => onNavigate('messages')}
+            className="w-full p-4 flex items-center justify-between text-left hover:bg-white/[0.02] transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <Mail className="w-4 h-4 text-[#668CFF]" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-[#F5F5F5]">Inbox & Messages</p>
+                  {unreadMessagesCount > 0 && (
+                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#668CFF]/20 text-[#668CFF] font-semibold border border-[#668CFF]/30">
+                      {unreadMessagesCount} unread
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[#929292]">Review visitor contact form submissions, reply via email, and manage inquiries</p>
+              </div>
+            </div>
+            <span className="text-xs text-[#929292]">&rarr;</span>
+          </button>
+
+          <button
             onClick={() => onNavigate('profile')}
-            className="w-full p-4 flex items-center justify-between text-left hover:bg-white/[0.02] transition-colors"
+            className="w-full p-4 flex items-center justify-between text-left hover:bg-white/[0.02] transition-colors cursor-pointer"
           >
             <div className="flex items-center gap-3">
               <User className="w-4 h-4 text-[#929292]" />

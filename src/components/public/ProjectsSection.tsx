@@ -1,15 +1,22 @@
 import React, { useState } from 'react';
 import { usePortfolio } from '../../context/PortfolioContext';
 import { Github, ExternalLink, ArrowUpRight, ChevronDown, ChevronUp, RefreshCw, AlertCircle, Star } from 'lucide-react';
-import { GITHUB_USERNAME } from '../../services/githubService';
+import { GITHUB_USERNAME, isPortfolioRepo } from '../../services/githubService';
 
 export const ProjectsSection: React.FC = () => {
   const { data, isFetchingGitHub, githubError, refreshGitHubRepos } = usePortfolio();
   const [showAll, setShowAll] = useState(false);
 
   // Filter published projects and exclude forked repos by default unless explicitly featured
+  // Strictly exclude portfolio repository itself as requested
   const eligibleProjects = data.projects.filter(
-    (p) => p.published !== false && (p.isFork !== true || p.featured === true)
+    (p) =>
+      p.published !== false &&
+      (p.isFork !== true || p.featured === true) &&
+      !isPortfolioRepo(p.repoName) &&
+      !isPortfolioRepo(p.title) &&
+      !isPortfolioRepo(p.githubUrl) &&
+      !isPortfolioRepo(p.id)
   );
 
   // Sort by manual order if specified

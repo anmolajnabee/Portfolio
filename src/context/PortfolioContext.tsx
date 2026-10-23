@@ -11,7 +11,7 @@ import {
   ContactMessage
 } from '../types/portfolio';
 import { GitHubRepository } from '../types/github';
-import { fetchGitHubRepositories, mapRepoToProject } from '../services/githubService';
+import { fetchGitHubRepositories, mapRepoToProject, isPortfolioRepo, fetchPortfolioProjects } from '../services/githubService';
 import { initialPortfolioData } from '../data/initialData';
 import {
   subscribeProfile,
@@ -178,10 +178,49 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }),
 
       subscribeProjects((projects) => {
-        const verified = projects.filter(p => !['aurasent', 'hypervektor', 'nexushack', 'synapse-code'].includes(p.id));
-        if (verified.length > 0) {
-          setData(prev => ({ ...prev, projects: verified }));
-        }
+        const verified = projects.filter(
+          p =>
+            !['aurasent', 'hypervektor', 'nexushack', 'synapse-code'].includes(p.id) &&
+            !isPortfolioRepo(p.repoName) &&
+            !isPortfolioRepo(p.title) &&
+            !isPortfolioRepo(p.githubUrl) &&
+            !isPortfolioRepo(p.id)
+        );
+
+        setData(prev => {
+          // Merge Firestore records with initial / known GitHub projects so new repos are never hidden
+          const merged = [...verified];
+          initialPortfolioData.projects.forEach(initP => {
+            if (
+              !isPortfolioRepo(initP.repoName) &&
+              !merged.some(m =>
+                m.id === initP.id ||
+                m.repoName?.toLowerCase() === initP.repoName?.toLowerCase() ||
+                m.githubUrl?.toLowerCase() === initP.githubUrl?.toLowerCase() ||
+                m.title.toLowerCase() === initP.title.toLowerCase()
+              )
+            ) {
+              merged.push(initP);
+            }
+          });
+
+          // Sort Newest First: Complaint Portal (0), Capacity Connect (1), FancyText (2)
+          merged.sort((a, b) => {
+            const aName = (a.repoName || a.title || '').toLowerCase();
+            const bName = (b.repoName || b.title || '').toLowerCase();
+            if (aName.includes('complaint')) return -1;
+            if (bName.includes('complaint')) return 1;
+            if (aName.includes('capacity')) return -1;
+            if (bName.includes('capacity')) return 1;
+            return (a.order ?? 999) - (b.order ?? 999);
+          });
+
+          merged.forEach((p, idx) => {
+            p.order = idx;
+          });
+
+          return { ...prev, projects: merged };
+        });
       }, isAdmin),
 
       subscribeCertificates((certificates) => {
@@ -332,50 +371,62 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setIsFetchingGitHub(true);
     setGithubError(null);
     try {
-      const { repos, rateLimitRemaining: rlRemaining } = await fetchGitHubRepositories(forceRefresh);
-      setGithubRepos(repos);
-      setRateLimitRemaining(rlRemaining);
+      const fetchedProjects = await fetchPortfolioProjects(forceRefresh);
 
       setData(prev => {
-        const currentProjects = [...prev.projects];
-        let changed = false;
+        // Strip out any portfolio repository entries
+        const currentProjects = prev.projects.filter(
+          p =>
+            !isPortfolioRepo(p.repoName) &&
+            !isPortfolioRepo(p.title) &&
+            !isPortfolioRepo(p.githubUrl) &&
+            !isPortfolioRepo(p.id)
+        );
 
-        repos.forEach((repo, idx) => {
+        // Merge fetched projects preserving custom title, description, or published state
+        fetchedProjects.forEach((proj) => {
           const matchIndex = currentProjects.findIndex(
             p =>
-              p.githubUrl?.toLowerCase() === repo.html_url.toLowerCase() ||
-              p.id === `gh-${repo.id}` ||
-              p.repoName?.toLowerCase() === repo.name.toLowerCase() ||
-              p.title.toLowerCase() === repo.name.replace(/[-_]+/g, ' ').toLowerCase()
+              p.githubUrl?.toLowerCase() === proj.githubUrl?.toLowerCase() ||
+              p.id === proj.id ||
+              p.repoName?.toLowerCase() === proj.repoName?.toLowerCase() ||
+              p.title.toLowerCase() === proj.title.toLowerCase()
           );
 
           if (matchIndex >= 0) {
-            // Keep user customizations (custom title, description, demoUrl, order, featured, published)
-            // but update live GitHub stats and repository links
             const existing = currentProjects[matchIndex];
             currentProjects[matchIndex] = {
               ...existing,
-              stars: repo.stargazers_count,
-              forks: repo.forks_count,
-              isFork: repo.fork,
-              language: repo.language || existing.language,
-              lastUpdated: repo.updated_at,
-              githubUrl: repo.html_url,
-              repoName: repo.name,
+              stars: proj.stars ?? existing.stars,
+              forks: proj.forks ?? existing.forks,
+              isFork: proj.isFork ?? existing.isFork,
+              language: proj.language || existing.language,
+              lastUpdated: proj.lastUpdated || existing.lastUpdated,
+              githubUrl: proj.githubUrl || existing.githubUrl,
+              demoUrl: existing.demoUrl || proj.demoUrl,
+              coverStyle: existing.coverStyle || proj.coverStyle,
             };
-            changed = true;
           } else {
-            // Add newly discovered repository as a portfolio project
-            const newProj = mapRepoToProject(repo, undefined, currentProjects.length + idx);
-            currentProjects.push(newProj);
-            changed = true;
+            currentProjects.push(proj);
           }
         });
 
-        // Sort by order property if defined
-        currentProjects.sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+        // Ensure confirmed Newest First ordering: Complaint Portal -> Capacity Connect -> FancyText
+        currentProjects.sort((a, b) => {
+          const aName = (a.repoName || a.title).toLowerCase();
+          const bName = (b.repoName || b.title).toLowerCase();
+          if (aName.includes('complaint')) return -1;
+          if (bName.includes('complaint')) return 1;
+          if (aName.includes('capacity')) return -1;
+          if (bName.includes('capacity')) return 1;
+          return (a.order ?? 999) - (b.order ?? 999);
+        });
 
-        return changed ? { ...prev, projects: currentProjects } : prev;
+        currentProjects.forEach((p, idx) => {
+          p.order = idx;
+        });
+
+        return { ...prev, projects: currentProjects };
       });
     } catch (err: any) {
       setGithubError(err.message || 'Failed to fetch GitHub repositories.');
@@ -384,9 +435,9 @@ export const PortfolioProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
   };
 
-  // Auto-fetch GitHub repositories on mount
+  // Auto-fetch GitHub repositories on mount with fresh sync
   useEffect(() => {
-    refreshGitHubRepos(false);
+    refreshGitHubRepos(true);
   }, []);
 
   const addCertificate = async (certData: Omit<Certificate, 'id'>) => {

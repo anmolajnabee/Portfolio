@@ -19,7 +19,7 @@ import {
   Check,
   AlertCircle
 } from 'lucide-react';
-import { GITHUB_USERNAME } from '../../services/githubService';
+import { GITHUB_USERNAME, isPortfolioRepo } from '../../services/githubService';
 
 export const AdminProjects: React.FC = () => {
   const {
@@ -143,8 +143,16 @@ export const AdminProjects: React.FC = () => {
     }
   };
 
-  // Sort projects by order
-  const sortedProjects = [...projects].sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
+  // Sort projects by order, strictly excluding the portfolio repo itself
+  const sortedProjects = [...projects]
+    .filter(
+      (p) =>
+        !isPortfolioRepo(p.repoName) &&
+        !isPortfolioRepo(p.title) &&
+        !isPortfolioRepo(p.githubUrl) &&
+        !isPortfolioRepo(p.id)
+    )
+    .sort((a, b) => (a.order ?? 999) - (b.order ?? 999));
 
   return (
     <div className="space-y-8 max-w-4xl">

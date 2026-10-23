@@ -25,12 +25,30 @@ export const initialPortfolioData: PortfolioData = {
     },
     stats: {
       hackathonsWon: 0,
-      projectsCompleted: 2,
+      projectsCompleted: 3,
       contributionsCount: "Active",
       academicGpa: "In Progress"
     }
   },
   projects: [
+    {
+      id: "gh-complaint-management",
+      title: "Complaint Management Portal",
+      tagline: "JEC KUKAS Complaint Management & Resolution Portal",
+      description: "Full-stack institutional complaint resolution web portal featuring categorized grievance submission, automated routing, status tracking, and administrative review workflows.",
+      fullStory: "A production-ready complaint resolution platform tailored for Jaipur Engineering College (JEC Kukas). Built using TypeScript, React, Express, SQL, and JWT security to ensure transparency, accountability, and streamlined resolution between students and campus administration.",
+      category: "Full-Stack Web App",
+      technologies: ["TypeScript", "React", "Express", "SQL", "Tailwind CSS"],
+      githubUrl: "https://github.com/anmolajnabee/Complaint-Management-Portal",
+      demoUrl: "https://complaint-management-portal.anmolkr.workers.dev/",
+      featured: true,
+      published: true,
+      order: 0,
+      date: "2026",
+      repoName: "Complaint-Management-Portal",
+      language: "TypeScript",
+      coverStyle: "analytics"
+    },
     {
       id: "gh-capacity-connect",
       title: "Capacity Connect Training Platform",
@@ -40,10 +58,10 @@ export const initialPortfolioData: PortfolioData = {
       category: "Web & AI Platform",
       technologies: ["Python", "Reflex", "Web Development"],
       githubUrl: "https://github.com/anmolajnabee/Capacity-Connect-Training-Platform",
-      demoUrl: "https://capacity-connect-training-platform-gray-star.reflex.run/",
+      demoUrl: "https://capacity-connect-training-platform.vercel.app",
       featured: true,
       published: true,
-      order: 0,
+      order: 1,
       date: "2026",
       repoName: "Capacity-Connect-Training-Platform",
       language: "Python",
@@ -61,7 +79,7 @@ export const initialPortfolioData: PortfolioData = {
       demoUrl: "https://fancy-text-two.vercel.app",
       featured: true,
       published: true,
-      order: 1,
+      order: 2,
       date: "2025",
       repoName: "FancyText",
       language: "HTML",

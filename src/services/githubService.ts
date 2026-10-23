@@ -4,13 +4,29 @@ import { Project } from '../types/portfolio';
 export const GITHUB_USERNAME = 'anmolajnabee';
 export const GITHUB_API_URL = `https://api.github.com/users/${GITHUB_USERNAME}/repos?per_page=100&sort=updated`;
 
-const CACHE_KEY = `gh_repos_cache_${GITHUB_USERNAME}`;
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache
+const CACHE_KEY = `gh_repos_cache_v4_${GITHUB_USERNAME}`;
+const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes cache
 
 interface CachePayload {
   timestamp: number;
   repos: GitHubRepository[];
   rateLimitRemaining: number | null;
+}
+
+/**
+ * Checks if a repository corresponds to the portfolio itself so it can be excluded.
+ */
+export function isPortfolioRepo(nameOrUrl?: string | null): boolean {
+  if (!nameOrUrl) return false;
+  const cleaned = nameOrUrl.toLowerCase().trim();
+  return (
+    cleaned === 'portfolio' ||
+    cleaned === 'portfolio/' ||
+    cleaned.endsWith('/portfolio') ||
+    cleaned.endsWith('/portfolio.git') ||
+    cleaned.includes('anmolajnabee/portfolio') ||
+    cleaned === 'gh-1425165648'
+  );
 }
 
 /**
@@ -30,7 +46,7 @@ export async function fetchGitHubRepositories(forceRefresh = false): Promise<{
         const payload: CachePayload = JSON.parse(cached);
         if (Date.now() - payload.timestamp < CACHE_TTL_MS) {
           return {
-            repos: payload.repos,
+            repos: payload.repos.filter((r) => !isPortfolioRepo(r.name) && !isPortfolioRepo(r.html_url)),
             rateLimitRemaining: payload.rateLimitRemaining,
             fromCache: true,
           };
@@ -71,7 +87,11 @@ export async function fetchGitHubRepositories(forceRefresh = false): Promise<{
       throw new Error('Unexpected format received from GitHub API.');
     }
 
-    const repos = data as GitHubRepository[];
+    const rawRepos = data as GitHubRepository[];
+    // Strictly exclude the portfolio repository itself as requested
+    const repos = rawRepos.filter(
+      (r) => !isPortfolioRepo(r.name) && !isPortfolioRepo(r.html_url)
+    );
 
     // Save to sessionStorage
     if (typeof window !== 'undefined') {
@@ -125,10 +145,13 @@ export function mapRepoToProject(
   // Check known candidate specifics for clean defaults
   const isCapacityConnect = repo.name.toLowerCase().includes('capacity-connect');
   const isFancyText = repo.name.toLowerCase().includes('fancytext');
+  const isComplaintPortal = repo.name.toLowerCase().includes('complaint');
 
   // Human-readable title
   let defaultTitle = repo.name.replace(/[-_]+/g, ' ').trim();
-  if (isCapacityConnect) {
+  if (isComplaintPortal) {
+    defaultTitle = 'Complaint Management Portal';
+  } else if (isCapacityConnect) {
     defaultTitle = 'Capacity Connect Training Platform';
   } else if (isFancyText) {
     defaultTitle = 'FancyText';
@@ -137,29 +160,41 @@ export function mapRepoToProject(
   // Description
   let defaultDescription =
     repo.description ||
-    (isFancyText
+    (isComplaintPortal
+      ? 'JEC KUKAS Complaint Management Portal - Full-stack campus grievance lodging and tracking system.'
+      : isFancyText
       ? 'Web text styling and formatting utility built with responsive web standards.'
       : 'Public software repository on GitHub.');
 
   // Demo URL validation
   let defaultDemoUrl = '';
-  if (isCapacityConnect) {
-    // Verified working Reflex platform URL
-    defaultDemoUrl = 'https://capacity-connect-training-platform-gray-star.reflex.run/';
+  if (isComplaintPortal) {
+    defaultDemoUrl = repo.homepage || 'https://complaint-management-portal.anmolkr.workers.dev/';
+  } else if (isCapacityConnect) {
+    defaultDemoUrl = repo.homepage || 'https://capacity-connect-training-platform.vercel.app';
+  } else if (isFancyText) {
+    defaultDemoUrl = repo.homepage || 'https://fancy-text-two.vercel.app';
   } else if (repo.homepage && repo.homepage.startsWith('http')) {
     defaultDemoUrl = repo.homepage;
   }
 
   // Technologies
   let techTags: string[] = [];
-  if (repo.language) {
-    techTags.push(repo.language);
-  }
-  if (Array.isArray(repo.topics) && repo.topics.length > 0) {
-    techTags.push(...repo.topics.map((t) => t.replace(/[-_]/g, ' ')));
-  }
-  if (isCapacityConnect && !techTags.includes('Reflex')) {
-    techTags.push('Reflex');
+  if (isComplaintPortal) {
+    techTags.push('TypeScript', 'React', 'Express', 'SQL', 'Tailwind CSS');
+  } else {
+    if (repo.language) {
+      techTags.push(repo.language);
+    }
+    if (Array.isArray(repo.topics) && repo.topics.length > 0) {
+      techTags.push(...repo.topics.map((t) => t.replace(/[-_]/g, ' ')));
+    }
+    if (isCapacityConnect && !techTags.includes('Reflex')) {
+      techTags.push('Reflex');
+    }
+    if (isFancyText && !techTags.includes('JavaScript')) {
+      techTags.push('JavaScript', 'CSS');
+    }
   }
   if (techTags.length === 0) {
     techTags = ['Software Development'];
@@ -172,13 +207,28 @@ export function mapRepoToProject(
     ? new Date(repo.updated_at).getFullYear().toString()
     : new Date().getFullYear().toString();
 
+  const defaultCategory = isComplaintPortal
+    ? 'Full-Stack Web App'
+    : isCapacityConnect
+    ? 'Web & AI Platform'
+    : 'Web Development';
+
+  const defaultCoverStyle: 'neural' | 'network' | 'analytics' | 'terminal' | 'cyber' =
+    isComplaintPortal
+      ? 'analytics'
+      : isCapacityConnect
+      ? 'network'
+      : isFancyText
+      ? 'terminal'
+      : 'neural';
+
   return {
-    id: existing?.id || `gh-${repo.id}`,
+    id: existing?.id || `gh-${repo.id || repo.name.toLowerCase()}`,
     title: existing?.title || defaultTitle,
     tagline: existing?.tagline || defaultDescription,
     description: existing?.description || defaultDescription,
     fullStory: existing?.fullStory || defaultDescription,
-    category: existing?.category || (isCapacityConnect ? 'Web & AI Platform' : 'Web Development'),
+    category: existing?.category || defaultCategory,
     technologies: existing?.technologies && existing.technologies.length > 0 ? existing.technologies : uniqueTech,
     githubUrl: repo.html_url,
     demoUrl: existing?.demoUrl !== undefined ? existing.demoUrl : defaultDemoUrl,
@@ -193,5 +243,52 @@ export function mapRepoToProject(
     isFork: repo.fork,
     language: repo.language || undefined,
     lastUpdated: repo.updated_at,
+    coverStyle: existing?.coverStyle || defaultCoverStyle,
   };
+}
+
+/**
+ * Fetches curated GitHub projects, attempting the server proxy first to bypass rate limits,
+ * and falling back to direct GitHub API if needed. Strictly excludes portfolio repository.
+ */
+export async function fetchPortfolioProjects(forceRefresh = false): Promise<Project[]> {
+  try {
+    const res = await fetch(`/api/github-projects${forceRefresh ? '?refresh=true' : ''}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (json.success && Array.isArray(json.projects) && json.projects.length > 0) {
+        return json.projects.filter(
+          (p: Project) =>
+            !isPortfolioRepo(p.repoName) &&
+            !isPortfolioRepo(p.title) &&
+            !isPortfolioRepo(p.githubUrl) &&
+            !isPortfolioRepo(p.id)
+        );
+      }
+    }
+  } catch {
+    // Fall back to direct GitHub API
+  }
+
+  const { repos } = await fetchGitHubRepositories(forceRefresh);
+  const mapped = repos
+    .filter((r) => !isPortfolioRepo(r.name) && !isPortfolioRepo(r.html_url))
+    .map((repo, idx) => mapRepoToProject(repo, undefined, idx));
+
+  // Sort confirmed Newest first: Complaint Portal -> Capacity Connect -> FancyText
+  mapped.sort((a, b) => {
+    const aName = (a.repoName || a.title || '').toLowerCase();
+    const bName = (b.repoName || b.title || '').toLowerCase();
+    if (aName.includes('complaint')) return -1;
+    if (bName.includes('complaint')) return 1;
+    if (aName.includes('capacity')) return -1;
+    if (bName.includes('capacity')) return 1;
+    return 0;
+  });
+
+  mapped.forEach((p, index) => {
+    p.order = index;
+  });
+
+  return mapped;
 }

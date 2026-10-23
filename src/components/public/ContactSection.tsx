@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { usePortfolio } from '../../context/PortfolioContext';
-import { Mail, Copy, Check, Send, Github, Linkedin, ArrowUpRight } from 'lucide-react';
+import { Mail, Check, Send, Github, Linkedin, ArrowUpRight } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, Textarea } from '../ui/Input';
 
@@ -18,7 +18,6 @@ const XIcon: React.FC<{ className?: string }> = ({ className = "w-4 h-4" }) => (
 export const ContactSection: React.FC = () => {
   const { data, setActiveView, submitMessage } = usePortfolio();
   const { profile } = data;
-  const email = profile.socials?.email || 'anm8789667614@gmail.com';
 
   // Exact verified LinkedIn URL
   const verifiedLinkedInUrl =
@@ -30,17 +29,10 @@ export const ContactSection: React.FC = () => {
 
   const xTwitterUrl = profile.socials?.twitter?.trim();
 
-  const [copied, setCopied] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', message: '', honeypot: '' });
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [serverError, setServerError] = useState<string | null>(null);
   const [errors, setErrors] = useState<{ name?: string; email?: string; message?: string }>({});
-
-  const handleCopyEmail = () => {
-    navigator.clipboard.writeText(email);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
 
   const validate = () => {
     const errs: typeof errors = {};
@@ -100,7 +92,7 @@ export const ContactSection: React.FC = () => {
         setTimeout(() => setStatus('idle'), 6000);
       } else {
         setStatus('error');
-        setServerError(res.error || 'Could not save message. Please try again or email directly.');
+        setServerError(res.error || 'Could not save message. Please try again.');
       }
     } catch (err) {
       setStatus('error');
@@ -128,43 +120,11 @@ export const ContactSection: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-          {/* Left Column: Direct Inquiries & Socials */}
+          {/* Left Column: Inquiries & Socials */}
           <div className="space-y-6">
             <p className="text-sm text-[#929292] leading-relaxed">
-              Interested in collaborating on software development, web applications, or technology projects? Feel free to reach out directly.
+              Interested in collaborating on software engineering, web applications, or technology projects? Send a message through the form or connect via the profiles below.
             </p>
-
-            {/* Direct Email with One-Click Copy */}
-            <div className="space-y-2">
-              <span className="text-xs font-mono text-[#929292] uppercase tracking-wider block">
-                Direct Email
-              </span>
-              <div className="flex items-center gap-2">
-                <a
-                  href={`mailto:${email}`}
-                  className="text-sm font-semibold text-[#F5F5F5] hover:text-[#668CFF] transition-colors"
-                >
-                  {email}
-                </a>
-                <button
-                  onClick={handleCopyEmail}
-                  className="p-1.5 text-[#929292] hover:text-[#F5F5F5] transition-colors rounded hover:bg-white/[0.04]"
-                  title="Copy email to clipboard"
-                  aria-label="Copy email address"
-                >
-                  {copied ? (
-                    <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  ) : (
-                    <Copy className="w-3.5 h-3.5" />
-                  )}
-                </button>
-              </div>
-              {copied && (
-                <span className="text-[11px] font-mono text-emerald-400 block">
-                  Copied to clipboard
-                </span>
-              )}
-            </div>
 
             {/* Social Links */}
             <div className="space-y-3 pt-2">
